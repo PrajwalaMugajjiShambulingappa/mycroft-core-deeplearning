@@ -267,7 +267,22 @@ class EventScheduler(Thread):
         self.clear_empty()
         # Store all pending scheduled events
         self.store()
-
+    
+    def remind_today_tasks(self):
+      today_date = datetime.date.today()
+      for event, event_list in self.events.items():
+          for scheduled_time, _, _, _ in event_list:
+              # Convert Unix timestamp to datetime.date
+              event_date = datetime.date.fromtimestamp(scheduled_time)
+              if event_date == today_date:
+                  self.schedule_event_handler(
+                      Message(
+                          'mycroft.scheduler.schedule_event',
+                          {'event': message.data.get('event'),
+                           'time': message.data.get('time'),
+                           'data': {'reminder': 'You have a task scheduled today'}}
+                      )
+                  )
 
 class EventSchedulerInterface:
     """Interface for accessing the event scheduler over the message bus."""
@@ -454,3 +469,16 @@ class EventSchedulerInterface:
         """Shutdown the interface unregistering any event handlers."""
         self.cancel_all_repeating_events()
         self.events.clear()
+
+    def remind_today_tasks(self):
+        for event_name in self.scheduled_repeats:
+            time_left = self.get_scheduled_event_status(event_name)
+            if time_left <= 86400:  # if event is due within 24 hours
+                self.bus.emit(
+                    Message(
+                        'mycroft.scheduler.remind_today_tasks',
+                        {'event': message.data.get('event'),
+                        'time': message.data.get('time'),
+                        'data': {'reminder': 'You have a task scheduled today'}}
+                    )
+                )
